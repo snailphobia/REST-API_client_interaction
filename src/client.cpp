@@ -3,7 +3,6 @@
 #include <fcntl.h>
 
 #include "client.hpp"
-#include "compatibility.hpp"
 
 static int server_socket;
 
@@ -47,9 +46,14 @@ int main(void) {
 
         /* send the request to the server */
         char* message = req->compose_message();
+        std::cout << ((POSTRequest*)req)->get_body()->size() << "\n";
         if (!are_you_still_there(server_socket))
             server_socket = open_connection(SERVER_IP, SERVER_PORT, AF_INET, SOCK_STREAM, 0);
         req->send_message(server_socket, message);
+
+        /* receive the response from the server */
+        char* response = receive_from_server(server_socket);
+        std::cout << response << "\n";
     }
     return 0;
 }

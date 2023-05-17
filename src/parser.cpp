@@ -1,7 +1,6 @@
 #include <bits/stdc++.h>
 
 #include "client.hpp"
-#include "compatibility.hpp"
 
 char* GETRequest::compose_message() {
     /* first write cookies to a char*[] typed field (lol archaic code) */
@@ -16,14 +15,31 @@ char* GETRequest::compose_message() {
         free(bufcook);
         return msg;
     }
+    return nullptr;
 }
 
 char* POSTRequest::compose_message() {
     auto bufcook = this->bonk_cookies();
 
     if (this->get_method() == post) {
-        
+        std::string msg;
+        msg += "POST "; msg += this->get_url(); msg += " HTTP/1.1\r\n";
+        msg += "Host: "; msg += SERVER_IP; msg += "\r\n";
+        msg += "Content-Type: " + (std::string)APP_JSON + "\r\n";
+        std::string body = ((JSONify*)this->jsonifier)->to_json(*this->get_body());
+        msg += "Content-Length: " + std::to_string(body.size()) + "\r\n";
+        msg += "Cookie: ";
+        for (int i = 0; i < this->get_cookies().size(); i++) {
+            msg += this->get_cookies()[i].first + "=" + this->get_cookies()[i].second;
+            if (i != this->get_cookies().size() - 1) msg += "; ";
+        }
+        msg += "\r\n\r\n";
+        msg += body;
+        char* msgc = (char*)malloc(msg.size() * sizeof(char));
+        strcpy(msgc, msg.c_str());
+        return msgc;
     }
+    return nullptr;
 }
 
 Request* parse_stdin(std::string command) {
@@ -35,9 +51,20 @@ Request* parse_stdin(std::string command) {
         std::cin >> username;
         std::cout << "password: ";
         std::cin >> password;
+
+        /* create post request to send username and password */
+        request = new POSTRequest(PATH_LOGIN);
+        ((POSTRequest*)request)->get_body()->push_back({"username", username});
+        ((POSTRequest*)request)->get_body()->push_back({"password", password});
+
+        return request;
     }
     if (command == "logout") {
         std::cerr << "logging out\n";
+
+        /* create get request to send logout request */
+        //todo
+        return request;
     }
     if (command == "register") {
         std::string username, password;
@@ -45,6 +72,13 @@ Request* parse_stdin(std::string command) {
         std::cin >> username;
         std::cout << "password: ";
         std::cin >> password;
+
+        /* create post request to send username and password */
+        request = new POSTRequest(PATH_REG);
+        ((POSTRequest*)request)->get_body()->push_back({"username", username});
+        ((POSTRequest*)request)->get_body()->push_back({"password", password});
+
+        return request;
     }
     if (command == "get_book") {
         std::string id;

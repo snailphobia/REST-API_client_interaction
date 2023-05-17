@@ -23,6 +23,8 @@
 
 #endif
 
+#include "compatibility.hpp"
+
 typedef enum _METHOD {
     get, post
 } METHOD;
@@ -81,10 +83,9 @@ private:
     Request() {}
 
 public:
-    Request(METHOD method, std::string url, std::vector<std::pair<std::string, std::string>> cookies) {
+    Request(METHOD method, std::string url) {
         this->method = method;
         this->url = url;
-        this->cookies = cookies;
     }
 
     METHOD get_method() {
@@ -97,6 +98,10 @@ public:
 
     std::vector<std::pair<std::string, std::string>> get_cookies() {
         return this->cookies;
+    }
+
+    void set_new_cookie(std::string key, std::string value) {
+        this->cookies.push_back({key, value});
     }
 
     char** bonk_cookies() {
@@ -118,19 +123,21 @@ public:
 
 class GETRequest : public Request {
 public:
-    GETRequest(std::string url, std::vector<std::pair<std::string, std::string>> cookies) : Request(get, url, cookies) {}
+    GETRequest(std::string url) : Request(get, url) {}
     char* compose_message();
 };
 
 class POSTRequest : public Request {
 private:
     const IJSONify* jsonifier = new JSONify();
-    std::vector<std::pair<std::string, std::string>> body;
+    std::vector<std::pair<std::string, std::string>> *body;
 public:
-    POSTRequest(std::string url, std::vector<std::pair<std::string, std::string>> cookies) : Request(post, url, cookies) {}
+    POSTRequest(std::string url) : Request(post, url) {
+        this->body = new std::vector<std::pair<std::string, std::string>>();
+    }
 
     /* get for body */
-    std::vector<std::pair<std::string, std::string>> get_body() {
+    std::vector<std::pair<std::string, std::string>>* get_body() {
         return this->body;
     }
 
