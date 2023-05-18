@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.docx": "xml",
+        "stdexcept": "cpp"
+    }
+}

@@ -54,22 +54,21 @@ public:
         std::string key, value;
         bool is_key = true;
         for (auto it = json.begin(); it != json.end(); it++) {
-            if (*it == '"') continue;
+            if (*it == '"' or *it == '{' or *it == '}') continue;
             if (*it == ':') {
                 is_key = false;
                 continue;
             }
             if (*it == ',') {
-                delta.push_back({key, value});
-                key = "";
-                value = "";
                 is_key = true;
+                delta.push_back(std::make_pair(key, value));
+                key = value = "";
                 continue;
             }
             if (is_key) key += *it;
             else value += *it;
         }
-        delta.push_back({key, value});
+        delta.push_back(std::make_pair(key, value));
         return delta;
     }
 };
@@ -80,6 +79,7 @@ private:
     METHOD method;
     std::string url;
     std::vector<std::pair<std::string, std::string>> cookies;
+    std::pair<std::string, std::string> *JWT = nullptr;
     Request() {}
 
 public:
@@ -100,8 +100,16 @@ public:
         return this->cookies;
     }
 
+    std::pair<std::string, std::string> *get_JWT() {
+        return this->JWT;
+    }
+
     void set_new_cookie(std::string key, std::string value) {
         this->cookies.push_back({key, value});
+    }
+
+    void set_JWT(std::string key, std::string value) {
+        this->JWT = new std::pair<std::string, std::string>(key, value);
     }
 
     char** bonk_cookies() {
@@ -122,8 +130,14 @@ public:
 };
 
 class GETRequest : public Request {
+    std::vector<std::string> params;
 public:
+    GETRequest(std::string url, std::vector<std::string> params) : Request(get, url) {
+        this->params = params;
+    }
     GETRequest(std::string url) : Request(get, url) {}
+
+    char* query_gen();
     char* compose_message();
 };
 
@@ -147,40 +161,47 @@ public:
 class Response {
 private:
     std::string message;
-    std::string status_code;
-    std::string status_message;
-    std::map<std::string, std::string> headers;
-    std::string body;
-    IJSONify* jsonifier = new JSONify();
+    int status_code;
+    std::vector<std::pair<std::string, std::string>> cookies;
+    std::string body; // will probably be in json format
+    const IJSONify* jsonifier = new JSONify();
     Response() {}
 
 public:
-    Response(std::string message) {
+    Response(std::string message, std::string code, std::string body) {
         this->message = message;
-        this->status_code = "";
-        this->status_message = "";
-        this->headers = {};
-        this->body = "";
+        this->status_code = std::stoi(code);
+        this->body = body;
     }
 
-    std::string get_status_code() {
+    std::string get_message() {
+        return this->message;
+    }
+
+    int get_status_code() {
         return this->status_code;
     }
 
-    std::string get_status_message() {
-        return this->status_message;
-    }
-
-    std::map<std::string, std::string> get_headers() {
-        return this->headers;
+    std::vector<std::pair<std::string, std::string>> get_cookies() {
+        return this->cookies;
     }
 
     std::string get_body() {
         return this->body;
     }
 
+    void set_cookies(std::vector<std::pair<std::string, std::string>> cookies) {
+        this->cookies = cookies;
+    }
+
     void parse_message();
     void print_response();
+
+    /* only use for application/json type bodies */
+    std::vector<std::pair<std::string, std::string>> get_json_body() {
+        return ((JSONify*)this->jsonifier)->from_json(this->body);
+    }
 };
 
 Request* parse_stdin(std::string command);
+Response* parse_response(char* response);
