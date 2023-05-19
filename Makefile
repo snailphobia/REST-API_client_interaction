@@ -25,6 +25,5 @@ bin/%.o: src/%.c
 client: $(OBJ) $(OBJ_C)
 	$(CXX) $(CXXFLAGS) bin/*.o -o $@ $(LDFLAGS)
 
-
 clean:
 	rm -rf bin/* client

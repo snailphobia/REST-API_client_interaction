@@ -39,7 +39,6 @@ char* GETRequest::compose_message() {
             msg_stdstr.pop_back(); msg_stdstr.pop_back();
             msg_stdstr += jwt;
             strcpy(msg, msg_stdstr.c_str());
-            std::cout << msg << std::endl;
         }
 
 

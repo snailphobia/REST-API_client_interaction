@@ -53,7 +53,6 @@ int main(void) {
 
         /* send the request to the server */
         char* message = req->compose_message();
-        std::cout << message << "\n";
         
         if (are_you_still_there(server_socket))
             close_connection(server_socket);
