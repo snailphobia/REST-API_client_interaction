@@ -16,18 +16,22 @@ static bool are_you_still_there(int sockfd) {
     flags |= O_NONBLOCK;
     fcntl(sockfd, F_SETFL, flags);
 
-    /* check if the socket is still readable */
+    /* send a zero-length message to check if the socket is still writable */
     char ender[1] = {};
-    int bytes = recv(sockfd, ender, 1, MSG_PEEK);
+    int bytes = send(sockfd, ender, 0, MSG_NOSIGNAL);
     try {
         if (bytes == -1)
             throw std::runtime_error("Connection timed out\n");
-        if (bytes == 0)
-            throw std::runtime_error("Socket not usable ??? ???\n");
     } catch (const std::runtime_error &e) {
         std::cerr << e.what();
+        flags &= ~O_NONBLOCK;
+        fcntl(sockfd, F_SETFL, flags);
         return false;
     }
+
+    /* set the socket back to blocking */
+    flags &= ~O_NONBLOCK;
+    fcntl(sockfd, F_SETFL, flags);
     return true;
 }
 
@@ -38,12 +42,8 @@ int main(void) {
 
     server_socket = open_connection(SERVER_IP, SERVER_PORT, AF_INET, SOCK_STREAM, 0);
     std::string command;
-    std::cout << "Socket opened: " << server_socket << "\n";
+    std::cout << "Socket open: " << server_socket << "\n";
     while(true) {
-        if (!are_you_still_there(server_socket)) {
-            close_connection(server_socket);
-            server_socket = open_connection(SERVER_IP, SERVER_PORT, AF_INET, SOCK_STREAM, 0);
-        }
         std::cin >> command;
         auto req = parse_stdin(command);
 
@@ -54,6 +54,10 @@ int main(void) {
         /* send the request to the server */
         char* message = req->compose_message();
         std::cout << message << "\n";
+        
+        if (are_you_still_there(server_socket))
+            close_connection(server_socket);
+        server_socket = open_connection(SERVER_IP, SERVER_PORT, AF_INET, SOCK_STREAM, 0);
         req->send_message(server_socket, message);
 
         /* receive the response from the server */

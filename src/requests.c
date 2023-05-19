@@ -29,7 +29,7 @@ char *compute_get_request(char *host, char *url, char *query_params,
     compute_message(message, line);
 
     // Step 3 (optional): add headers and/or cookies, according to the protocol format
-    if (cookies != NULL) {
+    if (cookies != NULL && cookies_count > 0) {
         int rc = sprintf(line, "Cookie: ");
         for (char **cookie = cookies; *cookie != NULL && cookie < cookies + cookies_count; cookie += 2) {
             rc += sprintf(line + rc, "%s=%s", *cookie, *(cookie + 1));
@@ -37,8 +37,8 @@ char *compute_get_request(char *host, char *url, char *query_params,
                 rc += sprintf(line + rc, "; ");
             }
         }
+        compute_message(message, line);
     }
-    compute_message(message, line);
 
     // Step 4: add final new line
     compute_message(message, "");

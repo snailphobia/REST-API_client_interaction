@@ -26,7 +26,7 @@
 #include "compatibility.hpp"
 
 typedef enum _METHOD {
-    get, post
+    get, post, put, del
 } METHOD;
 
 class IJSONify {
@@ -114,7 +114,7 @@ public:
 
     char** bonk_cookies() {
         char **bufcook = (char**)malloc(this->get_cookies().size() * 2 * sizeof(char*));
-        for (int i = 0; i < this->get_cookies().size(); i++) {
+        for (auto i = 0; i < (int)this->get_cookies().size(); i++) {
             bufcook[i * 2] = (char*)malloc(this->get_cookies()[i].first.size() * sizeof(char));
             bufcook[i * 2 + 1] = (char*)malloc(this->get_cookies()[i].second.size() * sizeof(char));
             strcpy(bufcook[i * 2], this->get_cookies()[i].first.c_str());
@@ -130,6 +130,7 @@ public:
 };
 
 class GETRequest : public Request {
+private:
     std::vector<std::string> params;
 public:
     GETRequest(std::string url, std::vector<std::string> params) : Request(get, url) {
@@ -155,6 +156,20 @@ public:
         return this->body;
     }
 
+    char* compose_message();
+};
+
+class DELRequest : public Request {
+    /* functionally the same as GETRequest */
+private:
+    std::vector<std::string> params;
+public:
+    DELRequest(std::string url) : Request(del, url) {}
+    DELRequest(std::string url, std::vector<std::string> params) : Request(del, url) {
+        this->params = params;
+    }
+
+    char* query_gen();
     char* compose_message();
 };
 

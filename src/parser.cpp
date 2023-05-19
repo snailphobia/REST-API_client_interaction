@@ -13,9 +13,9 @@ char* GETRequest::query_gen() {
 
     /* otherwise, generate a query string */
     std::string query;
-    for (int i = 0; i < this->params.size(); i++) {
+    for (auto i = 0; i < (int)this->params.size(); i++) {
         query += this->params[i];
-        if (i != this->params.size() - 1) {
+        if (i != (int)this->params.size() - 1) {
             query += "&";
         }
     }
@@ -31,7 +31,7 @@ char* GETRequest::compose_message() {
     if (this->get_method() == get) {
         char* msg = compute_get_request(SERVER_IP, (char*)this->get_url().c_str(), this->query_gen(), bufcook, this->get_cookies().size());
         /* add JWT if field is not null */
-        if (this->get_JWT() != nullptr) {
+        if (this->get_JWT() != nullptr && this->get_JWT()->first != "") {
             std::string jwt = "Authorization: Bearer " + this->get_JWT()->second + "\r\n\r\n";
             /* will need to replace 2 of the last \r\n with only one */
             std::string msg_stdstr = msg;
@@ -43,7 +43,7 @@ char* GETRequest::compose_message() {
         }
 
 
-        for (int i = 0; i < this->get_cookies().size(); i++) {
+        for (auto i = 0; i < (int)this->get_cookies().size(); i++) {
             free(bufcook[i * 2]);
             free(bufcook[i * 2 + 1]);
         }
@@ -51,6 +51,38 @@ char* GETRequest::compose_message() {
         return msg;
     }
     return nullptr;
+}
+
+char* DELRequest::query_gen() {
+    /* if the params vector is empty, return NULL */
+    if (this->params.size() == 0) {
+        return NULL;
+    }
+
+    /* otherwise, generate a query string */
+    std::string query;
+    for (auto i = 0; i < (int)this->params.size(); i++) {
+        query += this->params[i];
+        if (i != (int)this->params.size() - 1) {
+            query += "&";
+        }
+    }
+    char* query_params = (char*)malloc(query.size() * sizeof(char));
+    strcpy(query_params, query.c_str());
+    return query_params;
+}
+
+
+char* DELRequest::compose_message() {
+    std::string msg;
+    msg += "DELETE "; msg += this->get_url(); msg += " HTTP/1.1\r\n";
+    msg += "Host: "; msg += SERVER_IP; msg += "\r\n";
+    if (this->get_JWT() != nullptr)
+        msg += "Authorization: Bearer " + this->get_JWT()->second + "\r\n\r\n";
+    char* msgc = (char*)malloc(msg.size() * sizeof(char));
+    strcpy(msgc, msg.c_str());
+
+    return msgc;
 }
 
 char* POSTRequest::compose_message() {
@@ -62,13 +94,18 @@ char* POSTRequest::compose_message() {
         msg += "Host: "; msg += SERVER_IP; msg += "\r\n";
         msg += "Content-Type: " + (std::string)APP_JSON + "\r\n";
         std::string body = ((JSONify*)this->jsonifier)->to_json(*this->get_body());
+        if (this->get_JWT() != nullptr)
+            msg += "Authorization: Bearer " + this->get_JWT()->second + "\r\n";
         msg += "Content-Length: " + std::to_string(body.size()) + "\r\n";
-        msg += "Cookie: ";
-        for (int i = 0; i < this->get_cookies().size(); i++) {
-            msg += this->get_cookies()[i].first + "=" + this->get_cookies()[i].second;
-            if (i != this->get_cookies().size() - 1) msg += "; ";
+        if (this->get_cookies().size() > 0) {
+            msg += "Cookie: ";
+            for (auto i = 0; i < (int)this->get_cookies().size(); i++) {
+                msg += this->get_cookies()[i].first + "=" + this->get_cookies()[i].second;
+                if (i != (int)this->get_cookies().size() - 1) msg += "; ";
+            }
+            msg += "\r\n\r\n";
         }
-        msg += "\r\n\r\n";
+        else msg += "\r\n";
         msg += body;
         char* msgc = (char*)malloc(msg.size() * sizeof(char));
         strcpy(msgc, msg.c_str());
@@ -81,6 +118,13 @@ Request* parse_stdin(std::string command) {
     Request* request;
     if (command == "" or command == "exit") return NULL;
     if (command == "login") {
+        try {
+            if (session_cookie.first != "") throw std::runtime_error("already logged in\n");
+        } catch(std::runtime_error& e) {
+            std::cerr << e.what();
+            return (Request*)ERROR_PTR;
+        }
+
         std::string username, password;
         std::cout << "username: ";
         std::cin >> username;
@@ -99,6 +143,10 @@ Request* parse_stdin(std::string command) {
 
         /* create get request to send logout request */
         request = new GETRequest(PATH_LOGOUT);
+        request->set_new_cookie("connect.sid", session_cookie.second);
+        session_cookie.first = ""; session_cookie.second = "";
+        JWT_token.first = ""; JWT_token.second = "";
+
         return request;
     }
     if (command == "register") {
@@ -128,8 +176,26 @@ Request* parse_stdin(std::string command) {
             return (Request*)ERROR_PTR;
         }
 
-        std::vector<std::string> wrapper = {std::to_string(id)};
-        request = new GETRequest(PATH_LIB_BOOKS, wrapper);
+        /* skull emoji, who would have thought*/
+        // std::vector<std::string> wrapper = {std::to_string(id)};
+        // request = new GETRequest(PATH_LIB_BOOKS, wrapper);
+        request = new GETRequest(std::string(PATH_LIB_BOOKS) + "/" + std::to_string(id));
+
+        try {
+            /* if there is no JWT stored */
+            if (session_cookie.first == "" or session_cookie.second == "") {
+                throw std::runtime_error("no JWT found, try something else\n");
+            }
+            request->set_JWT(JWT_token.first, JWT_token.second);
+        } catch(std::runtime_error& e) {
+            std::cerr << e.what();
+            return (Request*)ERROR_PTR;
+        }
+        return request;
+    }
+    if (command == "get_books") {
+        /* JWT required */
+        request = new GETRequest(PATH_LIB_BOOKS);
 
         try {
             /* if there is no JWT stored */
@@ -159,22 +225,45 @@ Request* parse_stdin(std::string command) {
         std::string title, author, genre, publisher;
         int page_count;
         try {
-            std::cout << "title: "; std::cin >> title;
-            std::cout << "author: "; std::cin >> author;
-            std::cout << "genre: "; std::cin >> genre;
-            std::cout << "publisher: "; std::cin >> publisher;
+            std::cout << "title: "; std::cin.ignore(); std::getline(std::cin, title);
+            std::cout << "author: "; std::getline(std::cin, author);
+            std::cout << "genre: "; std::getline(std::cin, genre);
             std::cout << "page_count: "; std::cin >> page_count;
+            std::cout << "publisher: "; std::cin.ignore(); std::getline(std::cin, publisher);
             if (std::cin.fail()) throw std::runtime_error("ai, n-ai bani, te futi in ei\n");
+            if (JWT_token.second == "") throw std::runtime_error("au cea mai perversa shaorma la baneasa\n");
         } catch(const std::runtime_error &e) {
             std::cerr << e.what();
             std::cin.clear();
             return (Request*)ERROR_PTR;
         }
+
+        request = new POSTRequest(PATH_LIB_BOOKS);
+        ((POSTRequest*)request)->get_body()->push_back({"title", title});
+        ((POSTRequest*)request)->get_body()->push_back({"author", author});
+        ((POSTRequest*)request)->get_body()->push_back({"genre", genre});
+        ((POSTRequest*)request)->get_body()->push_back({"page_count", std::to_string(page_count)});
+        ((POSTRequest*)request)->get_body()->push_back({"publisher", publisher});
+
+        request->set_JWT(JWT_token.first, JWT_token.second);
+        return request;
     }
     if (command == "delete_book") {
-        std::string id;
+        int id;
         std::cout << "id: ";
-        std::cin >> id;
+        try {
+            std::cin >> id;
+            if (std::cin.fail()) throw std::runtime_error("in drumul meu ma tot gandeam\n");
+        } catch(const std::runtime_error &e) {
+            std::cerr << e.what();
+            std::cin.clear();
+            return (Request*)ERROR_PTR;
+        }
+
+        request = new DELRequest(std::string(PATH_LIB_BOOKS) + "/" + std::to_string(id));
+        request->set_JWT(JWT_token.first, JWT_token.second);
+
+        return request;
     }
     return (Request*)ERROR_PTR;
 }
@@ -182,6 +271,7 @@ Request* parse_stdin(std::string command) {
 Response* parse_response(char *response) {
     /* parse response */
     std::string response_str(response);
+    
     std::string header = response_str.substr(0, response_str.find("\r\n\r\n"));
     std::string body = response_str.substr(response_str.find("\r\n\r\n") + 4, response_str.size() - response_str.find("\r\n\r\n") - 4);
     std::string status = header.substr(header.find("HTTP/1.1 ") + 9, 3);
@@ -189,6 +279,10 @@ Response* parse_response(char *response) {
 
     /* find and store cookies all cookies; line starts with Set-Cookie: */
     std::vector<std::pair<std::string, std::string>> cookies;
+    if (header.find("Set-Cookie: ") == std::string::npos) {
+        return new Response(status_message, status, body);
+        /* no cookies, can skip below code */
+    }
     size_t index = header.find("Set-Cookie: ") + 12;
     while (index < header.find("\r\n", index)) {
         std::string cookie = header.substr(index, header.find(";", index) - index);
