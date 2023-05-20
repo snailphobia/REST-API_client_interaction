@@ -73,6 +73,55 @@ public:
     }
 };
 
+class Main {
+private:
+    int sockfd;
+    std::pair<std::string, std::string> session_cookie;
+    std::pair<std::string, std::string> JWT_token;
+
+    bool are_you_still_there(int sockfd);
+    static inline Main* instance = nullptr;
+
+    /* constructor */
+    Main() {};
+    
+public:
+    bool GTEST = false;
+    /* get, set */
+    int get_sockfd() {
+        return this->sockfd;
+    }
+    std::pair<std::string, std::string> get_session_cookie() {
+        return session_cookie;
+    }
+    std::pair<std::string, std::string> get_JWT_token() {
+        return JWT_token;
+    }
+
+    void set_sockfd(int sockfd) {
+        this->sockfd = sockfd;
+    }
+    void set_session_cookie(std::pair<std::string, std::string> session_cookie) {
+        this->session_cookie.first = session_cookie.first;
+        this->session_cookie.second = session_cookie.second;
+    }
+    void set_JWT_token(std::pair<std::string, std::string> JWT_token) {
+        this->JWT_token.first = JWT_token.first;
+        this->JWT_token.second = JWT_token.second;
+    }
+
+    static Main* get_instance() {
+        if (instance != nullptr) return instance;
+        instance = new Main();
+        return instance;
+    }
+
+    Main(Main const&) = delete;
+    void operator=(Main const&) = delete;
+
+    int cycle();
+    int main();
+};
 
 class Request {
 private:
@@ -209,7 +258,7 @@ public:
         this->cookies = cookies;
     }
 
-    void parse_message();
+    void parse_message(Main *main);
     void print_response();
 
     /* only use for application/json type bodies */
@@ -218,5 +267,5 @@ public:
     }
 };
 
-Request* parse_stdin(std::string command);
+Request* parse_stdin(std::string command, Main *main);
 Response* parse_response(char* response);

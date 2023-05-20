@@ -2,9 +2,6 @@
 
 #include "client.hpp"
 
-extern std::pair<std::string, std::string> session_cookie;
-extern std::pair<std::string, std::string> JWT_token;
-
 char* GETRequest::query_gen() {
     /* if the params vector is empty, return NULL */
     if (this->params.size() == 0) {
@@ -113,21 +110,21 @@ char* POSTRequest::compose_message() {
     return nullptr;
 }
 
-Request* parse_stdin(std::string command) {
+Request* parse_stdin(std::string command, Main* main) {
     Request* request;
-    if (command == "" or command == "exit") return NULL;
+    if (command == "" or command == "exit") return nullptr;
     if (command == "login") {
         try {
-            if (session_cookie.first != "") throw std::runtime_error("already logged in\n");
+            if (main->get_session_cookie().first != "") throw std::runtime_error("already logged in\n");
         } catch(std::runtime_error& e) {
-            std::cerr << e.what();
+            if (!main->GTEST) std::cerr << e.what();
             return (Request*)ERROR_PTR;
         }
 
         std::string username, password;
-        std::cout << "username: ";
+        if (!main->GTEST) std::cout << "username: ";
         std::cin >> username;
-        std::cout << "password: ";
+        if (!main->GTEST) std::cout << "password: ";
         std::cin >> password;
 
         /* create post request to send username and password */
@@ -138,21 +135,21 @@ Request* parse_stdin(std::string command) {
         return request;
     }
     if (command == "logout") {
-        std::cerr << "logging out\n";
+        if (!main->GTEST) std::cerr << "logging out\n";
 
         /* create get request to send logout request */
         request = new GETRequest(PATH_LOGOUT);
-        request->set_new_cookie("connect.sid", session_cookie.second);
-        session_cookie.first = ""; session_cookie.second = "";
-        JWT_token.first = ""; JWT_token.second = "";
+        request->set_new_cookie("connect.sid", main->get_session_cookie().second);
+        main->set_session_cookie({"", ""});
+        main->set_JWT_token({"", ""});
 
         return request;
     }
     if (command == "register") {
         std::string username, password;
-        std::cout << "username: ";
+        if (!main->GTEST) std::cout << "username: ";
         std::cin >> username;
-        std::cout << "password: ";
+        if (!main->GTEST) std::cout << "password: ";
         std::cin >> password;
 
         /* create post request to send username and password */
@@ -165,12 +162,12 @@ Request* parse_stdin(std::string command) {
     if (command == "get_book") {
         /* JWT required */
         int id;
-        std::cout << "id: ";
+        if (!main->GTEST) std::cout << "id: ";
         try {
             std::cin >> id;
             if (std::cin.fail()) throw std::runtime_error("la tine si la bani\n");
         } catch (std::runtime_error& e) {
-            std::cerr << e.what();
+            if (!main->GTEST) std::cerr << e.what();
             std::cin.clear();
             return (Request*)ERROR_PTR;
         }
@@ -182,12 +179,12 @@ Request* parse_stdin(std::string command) {
 
         try {
             /* if there is no JWT stored */
-            if (session_cookie.first == "" or session_cookie.second == "") {
+            if (main->get_session_cookie().first == "" or main->get_session_cookie().second == "") {
                 throw std::runtime_error("no JWT found, try something else\n");
             }
-            request->set_JWT(JWT_token.first, JWT_token.second);
+            request->set_JWT(main->get_JWT_token().first, main->get_JWT_token().second);
         } catch(std::runtime_error& e) {
-            std::cerr << e.what();
+            if (!main->GTEST) std::cerr << e.what();
             return (Request*)ERROR_PTR;
         }
         return request;
@@ -198,25 +195,25 @@ Request* parse_stdin(std::string command) {
 
         try {
             /* if there is no JWT stored */
-            if (session_cookie.first == "" or session_cookie.second == "") {
-                throw std::runtime_error("no JWT found, try something else\n");
+            if (main->get_JWT_token().first == "" or main->get_JWT_token().second == "") {
+                throw std::runtime_error("\t\tno JWT found, try something else\n");
             }
-            request->set_JWT(JWT_token.first, JWT_token.second);
+            request->set_JWT(main->get_JWT_token().first, main->get_JWT_token().second);
         } catch(std::runtime_error& e) {
-            std::cerr << e.what();
+            if (!main->GTEST) std::cerr << e.what();
             return (Request*)ERROR_PTR;
         }
         return request;
     }
     if (command == "enter_library") {
         /* if there is no connection cookie saved, return with error; */
-        if (session_cookie.first == "" or session_cookie.second == "") {
-            std::cerr << "\t\tno session cookie found, try something else\n";
+        if (main->get_session_cookie().first == "" or main->get_session_cookie().second == "") {
+            if (!main->GTEST) std::cerr << "\t\tno session cookie found, try something else\n";
             return (Request*)ERROR_PTR;
         }
 
         request = new GETRequest(PATH_LIB_ACC);
-        request->set_new_cookie(session_cookie.first, session_cookie.second);
+        request->set_new_cookie(main->get_session_cookie().first, main->get_session_cookie().second);
 
         return request;
     }
@@ -224,15 +221,15 @@ Request* parse_stdin(std::string command) {
         std::string title, author, genre, publisher;
         int page_count;
         try {
-            std::cout << "title: "; std::cin.ignore(); std::getline(std::cin, title);
-            std::cout << "author: "; std::getline(std::cin, author);
-            std::cout << "genre: "; std::getline(std::cin, genre);
-            std::cout << "page_count: "; std::cin >> page_count;
-            std::cout << "publisher: "; std::cin.ignore(); std::getline(std::cin, publisher);
+            if (!main->GTEST) std::cout << "title: "; std::cin.ignore(); std::getline(std::cin, title);
+            if (!main->GTEST) std::cout << "author: "; std::getline(std::cin, author);
+            if (!main->GTEST) std::cout << "genre: "; std::getline(std::cin, genre);
+            if (!main->GTEST) std::cout << "page_count: "; std::cin >> page_count;
+            if (!main->GTEST) std::cout << "publisher: "; std::cin.ignore(); std::getline(std::cin, publisher);
             if (std::cin.fail()) throw std::runtime_error("ai, n-ai bani, te futi in ei\n");
-            if (JWT_token.second == "") throw std::runtime_error("au cea mai perversa shaorma la baneasa\n");
+            if (main->get_JWT_token().second == "") throw std::runtime_error("au cea mai perversa shaorma la baneasa\n");
         } catch(const std::runtime_error &e) {
-            std::cerr << e.what();
+            if (!main->GTEST) std::cerr << e.what();
             std::cin.clear();
             return (Request*)ERROR_PTR;
         }
@@ -244,23 +241,23 @@ Request* parse_stdin(std::string command) {
         ((POSTRequest*)request)->get_body()->push_back({"page_count", std::to_string(page_count)});
         ((POSTRequest*)request)->get_body()->push_back({"publisher", publisher});
 
-        request->set_JWT(JWT_token.first, JWT_token.second);
+        request->set_JWT(main->get_JWT_token().first, main->get_JWT_token().second);
         return request;
     }
     if (command == "delete_book") {
         int id;
-        std::cout << "id: ";
+        if (!main->GTEST) std::cout << "id: ";
         try {
             std::cin >> id;
             if (std::cin.fail()) throw std::runtime_error("in drumul meu ma tot gandeam\n");
         } catch(const std::runtime_error &e) {
-            std::cerr << e.what();
+            if (!main->GTEST) std::cerr << e.what();
             std::cin.clear();
             return (Request*)ERROR_PTR;
         }
 
         request = new DELRequest(std::string(PATH_LIB_BOOKS) + "/" + std::to_string(id));
-        request->set_JWT(JWT_token.first, JWT_token.second);
+        request->set_JWT(main->get_JWT_token().first, main->get_JWT_token().second);
 
         return request;
     }
@@ -300,11 +297,11 @@ Response* parse_response(char *response) {
     return resp;
 }
 
-void Response::parse_message() {
+void Response::parse_message(Main *main) {
     /* check if there is a session cookie in the response */
     for (auto iter : this->get_cookies()) {
         if (iter.first == "connect.sid") {
-            session_cookie = iter;
+            main->set_session_cookie(iter);
             break;
         }
     }
@@ -313,7 +310,7 @@ void Response::parse_message() {
     auto jsonbody = this->get_json_body();
     for (auto iter : jsonbody) {
         if (iter.first == "token") {
-            JWT_token = {"Authorization", iter.second};
+            main->set_JWT_token({"Authorization", iter.second});
             break;
         }
     }

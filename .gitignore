@@ -1,2 +1,7 @@
 bin/*
 client
+checker/
+depend_scripts/googletest/
+test_logs.txt
+logs_output.txt
+homework4-cz.zip
