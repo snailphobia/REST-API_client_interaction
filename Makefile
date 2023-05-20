@@ -36,6 +36,8 @@ bin/%.o: tests/%.cpp
 client: $(OBJ) $(OBJ_C) $(OBJ_TEST)
 	$(CXX) $(CXXFLAGS) bin/*.o -o $@ $(LDFLAGS) $(GTEST)
 
+test_all: client
+	./client test
 
 clean:
 	rm -rf bin/* client
